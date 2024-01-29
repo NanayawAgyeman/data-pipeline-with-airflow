@@ -1,79 +1,60 @@
 # Importing necessary libraries
 import pandas as pd 
-import tweepy
-import json
+import yfinance as yf
 from datetime import datetime
-import s3fs
 import os
 from dotenv import load_dotenv
 
-def run_twitter_etl():
+def run_yahoo_finance_etl(stock_symbols):
     """
-    Function to perform ETL (Extract, Transform, Load) process on Twitter data of a specified user.
+    Function to perform ETL (Extract, Transform, Load) process on financial data from Yahoo Finance.
 
-    The function extracts tweets from a specified Twitter user's timeline, refines the data,
-    and stores it in a CSV file.
+    The function extracts historical stock prices for specified symbols, refines the data,
+    and stores it in separate CSV files in a 'stock_data' directory.
 
     Requirements:
-    - Tweepy library for Twitter API interaction.
+    - yfinance library for fetching financial data.
     - Pandas for data manipulation.
-    - s3fs for working with Amazon S3 (though not used in the provided script).
     - dotenv for loading environment variables.
 
     Environment Variables:
-    - Access_Token: Twitter access token.
-    - Access_Token_Secret: Twitter access token secret.
-    - API_Key: Twitter API key.
-    - API_Secret: Twitter API secret key.
+    - None
+
+    Inputs:
+    - stock_symbols: List of stock symbols to fetch data for.
 
     Output:
-    - A CSV file named 'refined_tweets.csv' containing refined Twitter data.
+    - CSV files stored in 'stock_data' directory, each named 'stock_prices_{symbol}.csv'
+      containing refined financial data for each stock.
 
     Note: Ensure that the required environment variables are set before running the script.
     """
-    # Load environment variables from a .env file
-    load_dotenv()
+    # Create 'stock_data' directory if it doesn't exist
+    if not os.path.exists('stock_data'):
+        os.makedirs('stock_data')
 
-    # Retrieve Twitter API credentials from environment variables
-    access_key = os.getenv('Access_Token')
-    access_secret = os.getenv('Access_Token_Secret')
-    consumer_key = os.getenv('API_Key')
-    consumer_secret = os.getenv('API_Secret')
+    for symbol in stock_symbols:
+        # Fetch historical stock prices using yfinance
+        stock_data = yf.download(symbol, start="2022-01-01", end=datetime.today().strftime('%Y-%m-%d'))
 
-    # Twitter authentication using Tweepy
-    auth = tweepy.OAuthHandler(access_key, access_secret)
-    auth.set_access_token(consumer_key, consumer_secret)
+        # Extract relevant information from the stock data and store in a DataFrame
+        df = pd.DataFrame({
+            'Date': stock_data.index,
+            'Open': stock_data['Open'],
+            'High': stock_data['High'],
+            'Low': stock_data['Low'],
+            'Close': stock_data['Close'],
+            'Volume': stock_data['Volume']
+        })
 
-    # Creating an API object using Tweepy
-    api = tweepy.API(auth)
-
-    # Retrieve recent tweets from a specified user's timeline
-    tweets = api.user_timeline(screen_name='@elonmusk', 
-                               count=200,
-                               include_rts=False,
-                               tweet_mode='extended')
-
-    # Extract relevant information from each tweet and store in a list
-    tweet_list = []
-    for tweet in tweets:
-        text = tweet._json["full_text"]
-
-        refined_tweet = {
-            "user": tweet.user.screen_name,
-            'text': text,
-            'favorite_count': tweet.favorite_count,
-            'retweet_count': tweet.retweet_count,
-            'created_at': tweet.created_at
-        }
-
-        tweet_list.append(refined_tweet)
-
-    # Create a Pandas DataFrame from the list of refined tweets
-    df = pd.DataFrame(tweet_list)
-
-    # Save the DataFrame to a CSV file
-    df.to_csv('refined_tweets.csv', index=False)
+        # Save the DataFrame to a CSV file in the 'stock_data' directory for each stock
+        csv_filename = f'stock_data/stock_prices_{symbol}.csv'
+        df.to_csv(csv_filename, index=False)
+        print(f"Data for {symbol} saved to {csv_filename}")
 
 if __name__ == "__main__":
-    # Execute the ETL process when the script is run
-    run_twitter_etl()
+    # List of stock symbols to fetch data for
+    stock_symbols = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'FB', 'NVDA', 'V', 'PYPL', 'NFLX']
+
+    # Execute the ETL process for each stock
+    run_yahoo_finance_etl(stock_symbols)
