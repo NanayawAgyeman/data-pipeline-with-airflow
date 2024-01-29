@@ -14,3 +14,5 @@ __pycache__/
 *.DS_Store
 Thumbs.db
 .idea
+
+airflow-ec2.pem
